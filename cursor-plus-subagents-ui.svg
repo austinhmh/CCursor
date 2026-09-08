@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="980" viewBox="0 0 1160 980">
+  <title>Cursor++ Subagents settings UI preview</title>
+  <defs>
+    <style>
+      text { font-family: Inter, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; fill: #dedee5; font-size: 14px; }
+      .title { font-size: 25px; font-weight: 600; fill: #f3f3f6; }
+      .section { font-size: 12px; font-weight: 600; letter-spacing: 1px; fill: #a8a8b3; }
+      .label { font-size: 11px; fill: #a8a8b3; }
+      .note { font-size: 12px; fill: #9696a3; }
+      .strong { font-weight: 600; }
+      .card { fill: #202025; stroke: #3b3b45; }
+      .field { fill: #2a2a31; stroke: #484853; }
+      .line { stroke: #3b3b45; }
+    </style>
+    <g id="caret"><path d="m0 0 4 4 4-4" fill="none" stroke="#aaaab6" stroke-width="1.4"/></g>
+  </defs>
+  <rect width="1160" height="980" fill="#141417"/>
+  <text x="40" y="48" class="title">Cursor++ · Subagents 设置面板</text>
+  <text x="40" y="76" class="note">前端修改效果图 · 设计预览，尚未实现</text>
+
+  <rect x="40" y="102" width="470" height="836" rx="8" fill="#1b1b20" stroke="#3b3b45"/>
+  <text x="60" y="132" class="section">CURSOR++ CONTROL PANEL</text>
+  <path d="M40 149 H510" class="line"/>
+  <text x="60" y="181" class="section">PROVIDERS</text>
+  <rect x="60" y="194" width="430" height="38" rx="4" class="card"/>
+  <text x="74" y="219">›   gpt test</text>
+  <text x="474" y="219" text-anchor="end" class="note">OPENAI RESPONSES</text>
+
+  <text x="60" y="270" class="section">SUBAGENTS</text>
+  <rect x="424" y="253" width="66" height="23" rx="4" fill="#393226"/>
+  <text x="457" y="270" text-anchor="middle" fill="#e4c98e" font-size="12">未保存</text>
+  <text x="60" y="295" class="note">只配置内置子代理，不改变主 Agent 模型。</text>
+
+  <rect x="60" y="312" width="430" height="202" rx="5" class="card"/>
+  <text x="76" y="339" class="strong">统一默认</text>
+  <text x="474" y="339" text-anchor="end" class="note">未覆盖的类型使用此配置</text>
+  <text x="76" y="363" class="label">模型 / PROVIDER</text>
+  <rect x="76" y="371" width="398" height="34" rx="3" class="field"/>
+  <text x="88" y="393">gpt test / gpt-5.6-luna</text><use href="#caret" x="452" y="383"/>
+  <text x="76" y="430" class="label">推理强度</text><text x="282" y="430" class="label">FAST</text>
+  <rect x="76" y="438" width="192" height="31" rx="3" class="field"/>
+  <text x="88" y="459">max</text><use href="#caret" x="247" y="449"/>
+  <rect x="282" y="438" width="192" height="31" rx="3" class="field"/>
+  <text x="294" y="459">开启</text><use href="#caret" x="452" y="449"/>
+  <text x="76" y="493" class="label">上下文</text>
+  <rect x="165" y="478" width="309" height="27" rx="3" class="field"/>
+  <text x="177" y="497">372,000 tokens</text><use href="#caret" x="452" y="488"/>
+
+  <rect x="60" y="527" width="430" height="75" rx="5" class="card"/>
+  <text x="76" y="554" class="strong">explore</text>
+  <rect x="253" y="538" width="221" height="29" rx="3" class="field"/>
+  <text x="265" y="558">使用统一默认</text><use href="#caret" x="452" y="549"/>
+  <text x="76" y="586" class="note">生效：luna · max · Fast 开启 · 372k</text>
+
+  <rect x="60" y="614" width="430" height="75" rx="5" class="card"/>
+  <text x="76" y="641" class="strong">generalPurpose</text>
+  <rect x="253" y="625" width="221" height="29" rx="3" class="field"/>
+  <text x="265" y="645">使用统一默认</text><use href="#caret" x="452" y="636"/>
+  <text x="76" y="673" class="note">生效：luna · max · Fast 开启 · 372k</text>
+
+  <rect x="60" y="701" width="430" height="157" rx="5" fill="#202025" stroke="#586f96"/>
+  <text x="76" y="728" class="strong">shell</text>
+  <text x="474" y="728" text-anchor="end" fill="#a8c7ff" font-size="12">独立覆盖</text>
+  <rect x="76" y="740" width="398" height="31" rx="3" class="field"/>
+  <text x="88" y="761">gpt test / gpt-5.6-luna</text><use href="#caret" x="452" y="751"/>
+  <text x="76" y="795" class="label">推理强度</text><text x="282" y="795" class="label">FAST</text>
+  <rect x="76" y="803" width="192" height="30" rx="3" class="field"/>
+  <text x="88" y="824">high</text><use href="#caret" x="247" y="814"/>
+  <rect x="282" y="803" width="192" height="30" rx="3" class="field"/>
+  <text x="294" y="824">关闭</text><use href="#caret" x="452" y="814"/>
+
+  <path d="M40 877 H510" class="line"/>
+  <rect x="60" y="894" width="88" height="32" rx="4" fill="#326bc3"/>
+  <text x="104" y="916" text-anchor="middle">保存</text>
+  <rect x="160" y="894" width="76" height="32" rx="4" fill="#33333c"/>
+  <text x="198" y="916" text-anchor="middle">取消</text>
+  <text x="490" y="916" text-anchor="end" class="note">重新加载</text>
+
+  <text x="554" y="135" class="title">关键交互</text>
+  <text x="554" y="164" class="note">同一个面板的下拉状态与保存反馈</text>
+
+  <rect x="554" y="192" width="566" height="220" rx="6" class="card"/>
+  <text x="576" y="223" class="strong">Fast 是三态选择</text>
+  <rect x="576" y="244" width="250" height="32" rx="3" fill="#29292f" stroke="#7297d9"/>
+  <text x="588" y="266">使用模型默认</text><use href="#caret" x="804" y="256"/>
+  <rect x="576" y="281" width="250" height="108" rx="3" class="field"/>
+  <rect x="580" y="285" width="242" height="32" fill="#30476c"/>
+  <text x="588" y="307">✓  使用模型默认</text>
+  <text x="609" y="342">开启</text><text x="609" y="376">关闭</text>
+  <text x="850" y="266" class="note">默认：采用模型设置</text>
+  <text x="850" y="304" class="note">开启：显式启用 Fast</text>
+  <text x="850" y="342" class="note">关闭：显式禁用 Fast</text>
+
+  <rect x="554" y="433" width="566" height="216" rx="6" class="card"/>
+  <text x="576" y="464" class="strong">模型选项同时显示 Provider</text>
+  <rect x="576" y="485" width="522" height="32" rx="3" class="field"/>
+  <text x="588" y="507">gpt test / gpt-5.6-luna</text><use href="#caret" x="1076" y="497"/>
+  <rect x="576" y="522" width="522" height="102" rx="3" class="field"/>
+  <rect x="580" y="556" width="514" height="34" fill="#30476c"/>
+  <text x="588" y="547">使用统一默认</text>
+  <text x="588" y="579">✓  gpt test / gpt-5.6-luna</text>
+  <text x="609" y="613">gpt test / gpt-5.6-sol</text>
+
+  <rect x="554" y="670" width="566" height="182" rx="6" class="card"/>
+  <text x="576" y="701" class="strong">保存状态与错误反馈</text>
+  <rect x="576" y="722" width="119" height="32" rx="3" fill="#2d4265"/>
+  <text x="635" y="744" text-anchor="middle">保存中…</text>
+  <text x="715" y="744" class="note">后端 ACK 前禁止编辑</text>
+  <rect x="576" y="773" width="522" height="57" rx="4" fill="#35242a" stroke="#80515e"/>
+  <text x="590" y="798" fill="#f1afb9">保存失败：所选模型已被删除。</text>
+  <text x="590" y="819" class="note">保留草稿和原配置，重新选择后保存。</text>
+
+  <text x="554" y="890" class="strong">界面不变量</text>
+  <text x="554" y="919">继承行不复制默认配置；默认变化后自动更新生效摘要。</text>
+  <text x="554" y="946">更换模型会清空旧参数；Luna / max / 372k 只是示例。</text>
+</svg>

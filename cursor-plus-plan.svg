@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920">
+<title>Cursor++ 三项改动架构图</title>
+<defs><style>
+text{font-family:Inter,'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#172b4d}.title{font-size:28px;font-weight:700}.heading{font-size:20px;font-weight:700}.body{font-size:16px}.note{font-size:14px;fill:#59677a}.panel{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}.box{fill:#fff;stroke:#94a3b8;stroke-width:1.2}.arrow{fill:none;stroke:#475569;stroke-width:2;marker-end:url(#arrow)}</style>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#475569"/></marker></defs>
+<rect width="1400" height="920" fill="white"/>
+<text x="700" y="48" text-anchor="middle" class="title">Cursor++：缓存稳定与 Subagent 配置</text>
+<text x="700" y="77" text-anchor="middle" class="note">三项实施范围：user 快照、模式稳定、Subagent 选择</text>
+
+<rect x="30" y="108" width="420" height="590" rx="10" class="panel"/>
+<text x="54" y="143" class="heading">一、每个 user 轮次保存一次状态</text>
+<rect x="54" y="166" width="372" height="72" rx="6" class="box"/><text x="73" y="194" class="body">稳定 system + preamble</text><text x="73" y="218" class="note">不再包含当前 ide_state</text>
+<path d="M240 238 V262" class="arrow"/>
+<rect x="54" y="266" width="372" height="86" rx="6" class="box"/><text x="73" y="294" class="body">当前 user</text><text x="73" y="318" class="note">mode reminder + ide_state + query</text><text x="73" y="340" class="note">只构造一次</text>
+<path d="M240 352 V376" class="arrow"/>
+<rect x="54" y="380" width="372" height="86" rx="6" class="box"/><text x="73" y="408" class="body">工具循环</text><text x="73" y="432" class="note">只追加 assistant / tool result</text><text x="73" y="454" class="note">不追加第二份 user/state</text>
+<path d="M240 466 V490" class="arrow"/>
+<rect x="54" y="494" width="372" height="86" rx="6" class="box"/><text x="73" y="522" class="body">下一人类轮次</text><text x="73" y="546" class="note">追加新 user snapshot</text><text x="73" y="568" class="note">旧 user 原样保留</text>
+<text x="54" y="622" class="body">resume 有历史：不重复 user</text><text x="54" y="649" class="body">resume 空历史：保留唯一 user</text><text x="54" y="676" class="note">历史缩减只通过正常 compaction</text>
+
+<rect x="490" y="108" width="420" height="590" rx="10" class="panel"/>
+<text x="514" y="143" class="heading">二、模式切换不破坏缓存前缀</text>
+<rect x="514" y="166" width="372" height="72" rx="6" class="box"/><text x="533" y="194" class="body">模式无关 system prompt</text><text x="533" y="218" class="note">四种模式 canonical JSON 相同</text>
+<path d="M700 238 V262" class="arrow"/>
+<rect x="514" y="266" width="372" height="86" rx="6" class="box"/><text x="533" y="294" class="body">永久工具超集</text><text x="533" y="318" class="note">CreatePlan / SwitchMode / 写工具 / Task</text><text x="533" y="340" class="note">定义、顺序、schema 都保持一致</text>
+<path d="M700 352 V376" class="arrow"/>
+<rect x="514" y="380" width="372" height="86" rx="6" class="box"/><text x="533" y="408" class="body">当前 user 的 mode reminder</text><text x="533" y="432" class="note">Agent / Plan / Ask / Debug 差异</text><text x="533" y="454" class="note">只发生在请求尾部</text>
+<path d="M700 466 V490" class="arrow"/>
+<rect x="514" y="494" width="372" height="86" rx="6" class="box"/><text x="533" y="522" class="body">运行时权限门控</text><text x="533" y="546" class="note">禁止调用返回 mode_mismatch</text><text x="533" y="568" class="note">不执行任何副作用</text>
+<text x="514" y="622" class="body">CreatePlan：所有模式可见</text><text x="514" y="649" class="body">CreatePlan：仅 Plan 可执行</text><text x="514" y="676" class="note">工具可见 ≠ 权限扩大</text>
+
+<rect x="950" y="108" width="420" height="590" rx="10" class="panel"/>
+<text x="974" y="143" class="heading">三、Subagent 统一选择</text>
+<rect x="974" y="166" width="372" height="72" rx="6" class="box"/><text x="993" y="194" class="body">面板：统一默认 + 三类覆盖</text><text x="993" y="218" class="note">explore / generalPurpose / shell</text>
+<path d="M1160 238 V262" class="arrow"/>
+<rect x="974" y="266" width="372" height="86" rx="6" class="box"/><text x="993" y="294" class="body">原子保存 subagents.json</text><text x="993" y="318" class="note">内部 model.id + reasoning</text><text x="993" y="340" class="note">Fast 三态 + context</text>
+<path d="M1160 352 V376" class="arrow"/>
+<rect x="974" y="380" width="372" height="86" rx="6" class="box"/><text x="993" y="408" class="body">共同 Task builder</text><text x="993" y="432" class="note">新任务 / self-fork 应用设置</text><text x="993" y="454" class="note">普通 resume 保留现有行为</text>
+<path d="M1160 466 V490" class="arrow"/>
+<rect x="974" y="494" width="372" height="86" rx="6" class="box"/><text x="993" y="522" class="body">SubagentArgs → child → Provider</text><text x="993" y="546" class="note">modelId + modelParameters</text><text x="993" y="568" class="note">必须在 Mac 客户端实际验证</text>
+<text x="974" y="622" class="body">主 Agent 完全不变</text><text x="974" y="649" class="body">删除模型 / 损坏配置明确报错</text><text x="974" y="676" class="note">不硬编码 Luna 参数</text>
+
+<path d="M240 699 V735 H680" class="arrow"/><path d="M700 699 V735 H700" class="arrow"/><path d="M1160 699 V735 H720" class="arrow"/>
+<rect x="180" y="742" width="1040" height="125" rx="9" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="208" y="776" class="heading">验证与发布门槛</text><text x="208" y="807" class="body">CI：typecheck · lint · focused tests · full tests · extension/Webview build</text><text x="208" y="836" class="body">Mac：模式 system/tools 指纹 · SubagentArgs 到 Provider · 真实 cached_tokens</text><text x="208" y="859" class="note">模拟测试不能替代客户端协议和真实上游缓存验证</text>
+<text x="700" y="901" text-anchor="middle" class="note">CPA explicit cache 属于后续阶段；本次先修复 Cursor++ 请求结构</text>
+</svg>
