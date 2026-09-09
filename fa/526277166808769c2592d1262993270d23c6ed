@@ -1,0 +1,88 @@
+.github/workflows/ccursor-checks.yml
+  h_c1597aba944e30 1-43
+.github/workflows/ccursor-release.yml
+  h_c1597aba944e30 1-115
+Cursor++/package.json
+  h_c1597aba944e30 5
+Cursor++/src/server/config/paths.ts
+  h_c1597aba944e30 51-54
+Cursor++/src/server/config/subagentModelStore.ts
+  h_c1597aba944e30 1-55
+Cursor++/src/server/handlers/agent/conversationRuntime.ts
+  h_c1597aba944e30 1-2,11,19-20,873,924-934,940,950-951,963-968,1236-1238,1242-1246,1262,1285-1288
+Cursor++/src/server/handlers/agent/historyManager.ts
+  h_c1597aba944e30 98-125,138-146,267-268,273,276,280-293,334-338,352
+Cursor++/src/server/handlers/agent/protocol/messageBuilder.ts
+  h_c1597aba944e30 594
+Cursor++/src/server/handlers/agent/protocol/parseRunRequest.ts
+  h_c1597aba944e30 772
+Cursor++/src/server/handlers/agent/protocol/prompts/anthropicSystem.ts
+  h_c1597aba944e30 333-334
+Cursor++/src/server/handlers/agent/protocol/prompts/modeReminders.ts
+  h_c1597aba944e30 5,17-21
+Cursor++/src/server/handlers/agent/protocol/prompts/openaiSystem.ts
+  h_c1597aba944e30 70
+Cursor++/src/server/handlers/agent/subagentModelSelection.ts
+  h_c1597aba944e30 1-34
+Cursor++/src/server/handlers/agent/toolBatch.ts
+  h_c1597aba944e30 1-97
+Cursor++/src/server/handlers/agent/toolRuntime.ts
+  h_c1597aba944e30 37,72-74,107-114,123,125-134,143,704-706,745-747,782-783,785-787,803-814,818
+Cursor++/src/server/handlers/agent/toolkit/definitions/CreatePlan.ts
+  h_c1597aba944e30 5,14,18
+Cursor++/src/server/handlers/agent/toolkit/definitions/Task.ts
+  h_c1597aba944e30 3,393-394,404
+Cursor++/src/server/handlers/agent/toolkit/types.ts
+  h_c1597aba944e30 27,32-34,42-54
+Cursor++/src/server/handlers/agent/turnTracker.ts
+  h_c1597aba944e30 1,8-12,147,153-179
+Cursor++/src/server/tests/callMcpToolRouting.test.ts
+  h_c1597aba944e30 2,9-10,248-253
+Cursor++/src/server/tests/conversationContracts.test.ts
+  h_c1597aba944e30 1-132
+Cursor++/src/server/tests/ideSnapshot.test.ts
+  h_c1597aba944e30 1-99
+Cursor++/src/server/tests/modeCacheStability.test.ts
+  h_c1597aba944e30 1-190
+Cursor++/src/server/tests/protocolStep2Preamble.test.ts
+  h_c1597aba944e30 9-14,79,96,99,166-167,182-185,190-191
+Cursor++/src/server/tests/subagentPanel.test.ts
+  h_c1597aba944e30 1-72
+Cursor++/src/server/tests/subagentSettings.test.ts
+  h_c1597aba944e30 1-172
+Cursor++/src/server/tests/toolLifecycle.test.ts
+  h_c1597aba944e30 10,14-17
+Cursor++/src/shared/subagentConfig.ts
+  h_c1597aba944e30 1-73
+Cursor++/src/ui/components/layout.tsx
+  h_c1597aba944e30 13,53-54
+Cursor++/src/ui/components/subagents.tsx
+  h_c1597aba944e30 1-67
+Cursor++/src/ui/panel-provider.ts
+  h_c1597aba944e30 21,67-86
+Cursor++/src/ui/webview/app.ts
+  h_c1597aba944e30 8,84,840,849-851,855,907
+Cursor++/src/ui/webview/subagents.ts
+  h_c1597aba944e30 1-156
+README.md
+  h_c1597aba944e30 30-31,36,39,143
+README_CN.md
+  h_c1597aba944e30 34-35,41,44,166,168
+installer/.gitignore
+  h_c1597aba944e30 5-6
+installer/README.md
+  h_c1597aba944e30 7-8,10,16,22
+installer/package.json
+  h_c1597aba944e30 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "fa526277166808769c2592d1262993270d23c6ed",
+  "prompts": {},
+  "humans": {
+    "h_c1597aba944e30": {
+      "author": "mi <mi@miMacBook-Pro.local>"
+    }
+  }
+}
