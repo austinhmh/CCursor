@@ -2,6 +2,8 @@
 dist/
 vsix/
 installer.zip
+*.tgz
+*.sha256
 
 # Packages
 node_modules/

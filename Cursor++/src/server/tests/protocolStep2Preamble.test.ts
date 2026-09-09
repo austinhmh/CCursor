@@ -6,6 +6,12 @@ function preambleOf(msgs: ReturnType<typeof buildMessages>): string {
   return typeof preamble === 'string' ? preamble : preamble.map(b => (b.type === 'text' ? b.text : '')).join('')
 }
 
+function currentUserOf(messages: ReturnType<typeof buildMessages>): string {
+  const content = messages[2].content
+  expect(preambleOf(messages)).not.toContain('<ide_state')
+  return typeof content === 'string' ? content : content.map(block => block.type === 'text' ? block.text : '').join('')
+}
+
 function stubParsed(overrides: Record<string, unknown>): Parameters<typeof buildMessages>[0] {
   return {
     userText: 'q',
@@ -70,7 +76,7 @@ function stubParsed(overrides: Record<string, unknown>): Parameters<typeof build
 
 describe('buildPreambleUserMessage — Step 2 injection', () => {
   it('emits <ide_state> block with visible + recentlyViewed files', () => {
-    const pre = preambleOf(buildMessages(stubParsed({
+    const pre = currentUserOf(buildMessages(stubParsed({
       ideState: {
         visibleFiles: [
           { path: '/a/b.ts', relativePath: 'b.ts', totalLines: 100, cursorLine: 42, cursorText: 'const x = 1' },
@@ -87,10 +93,10 @@ describe('buildPreambleUserMessage — Step 2 injection', () => {
   })
 
   it('skips <ide_state> entirely when absent or empty', () => {
-    const pre = preambleOf(buildMessages(stubParsed({})))
+    const pre = currentUserOf(buildMessages(stubParsed({})))
     expect(pre).not.toContain('<ide_state')
 
-    const pre2 = preambleOf(buildMessages(stubParsed({
+    const pre2 = currentUserOf(buildMessages(stubParsed({
       ideState: { visibleFiles: [], recentlyViewedFiles: [] },
     })))
     expect(pre2).not.toContain('<ide_state')
@@ -157,8 +163,8 @@ describe('buildPreambleUserMessage — Step 2 injection', () => {
     expect(pre).toContain('<extra_context_pending blob_count="1" />')
   })
 
-  it('block ordering: ide_state before rules; mcp_instructions after skills', () => {
-    const pre = preambleOf(buildMessages(stubParsed({
+  it('places IDE state before current query and keeps preamble ordering', () => {
+    const messages = buildMessages(stubParsed({
       userRules: ['be terse'],
       mcpInstructions: [{ serverName: 's', instructions: 'x', serverIdentifier: 'i' }],
       selectedSkills: [{
@@ -173,13 +179,16 @@ describe('buildPreambleUserMessage — Step 2 injection', () => {
         raw: {},
       }],
       ideState: { visibleFiles: [{ path: '/a.ts', totalLines: 1 }], recentlyViewedFiles: [] },
-    })))
-    const ide = pre.indexOf('<ide_state')
+    }))
+    const pre = preambleOf(messages)
+    const current = currentUserOf(messages)
+    const ide = current.indexOf('<ide_state')
     const rules = pre.indexOf('<rules')
     const attachedSkills = pre.indexOf('<manually_attached_skills>')
     const mcp = pre.indexOf('<mcp_instructions')
     expect(ide).toBeGreaterThanOrEqual(0)
-    expect(rules).toBeGreaterThan(ide)
+    expect(current.indexOf('<user_query>')).toBeGreaterThan(ide)
+    expect(rules).toBeGreaterThanOrEqual(0)
     expect(attachedSkills).toBeGreaterThan(rules)
     expect(mcp).toBeGreaterThan(attachedSkills)
   })

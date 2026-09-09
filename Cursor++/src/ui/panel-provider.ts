@@ -18,6 +18,7 @@ import * as vscode from 'vscode'
 import { bumpRefreshSignal } from '../server'
 import { searchCatalog } from '../server/config/catalogStore'
 import { updateProviders } from '../server/config/providersStore'
+import { getSubagentConfig, saveSubagentConfig } from '../server/config/subagentModelStore'
 import { resetProviderInstanceCache } from '../server/handlers/llm/providerRuntime'
 import { renderHtml } from './components/layout'
 import { getState, onStateChange, refreshState } from './state'
@@ -63,6 +64,26 @@ export class PanelProvider implements vscode.WebviewViewProvider {
           await refreshState()
           this.postState()
           break
+        case 'getSubagentConfig':
+        case 'saveSubagentConfig': {
+          if (typeof msg.requestId !== 'string')
+            break
+          try {
+            const config = msg.type === 'saveSubagentConfig'
+              ? await saveSubagentConfig(msg.config)
+              : getSubagentConfig()
+            webviewView.webview.postMessage({ type: 'subagentConfigResult', requestId: msg.requestId, ok: true, config })
+          }
+          catch (error) {
+            webviewView.webview.postMessage({
+              type: 'subagentConfigResult',
+              requestId: msg.requestId,
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+          break
+        }
         case 'toggleByok':
           await vscode.commands.executeCommand('cursor2plus.toggleByok')
           break

@@ -1,0 +1,43 @@
+name: Cursor++ checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Cursor++
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: Cursor++/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check-types
+      - run: pnpm run lint
+      - name: Provide native SQLite for server tests
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ccursor-test-runtime" @vscode/sqlite3@5.1.14-vscode
+          echo "CURSOR_APP_ROOT=$RUNNER_TEMP/ccursor-test-runtime" >> "$GITHUB_ENV"
+      - name: Focused regression tests
+        run: pnpm exec vitest run src/server/tests/modeCacheStability.test.ts src/server/tests/ideSnapshot.test.ts src/server/tests/subagentSettings.test.ts src/server/tests/subagentPanel.test.ts src/server/tests/conversationContracts.test.ts
+      - run: pnpm run test:server
+      - run: pnpm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccursor-linux-validation-${{ github.sha }}
+          path: Cursor++/dist/

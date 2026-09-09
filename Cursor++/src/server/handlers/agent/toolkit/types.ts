@@ -24,26 +24,14 @@ export function toProviderFamily(pt: ProviderType): ProviderFamily {
 }
 
 /**
- * Cursor Agent 交互模式 — 决定暴露哪些工具给 LLM。
+ * Cursor Agent 交互模式 — 决定运行时执行权限，不改变工具定义。
  * 客户端通过 AGENT_MODE_* 枚举传入，这里归约为小写。
  */
 export type CursorAgentMode = 'agent' | 'ask' | 'plan' | 'debug';
 
-/**
- * 模式工具集差异规则:
- *
- *   Agent (基准): 完整工具集
- *   Ask:          移除写入工具 + SwitchMode (双重保障: 工具层面 + system_reminder)
- *   Plan:         Agent + CreatePlan
- *   Debug:        Agent - SwitchMode
- *
- * 交叉核对 (cursor_prompt/ OAI + analysis/prompts/ Anthropic 提取):
- *   官方 Ask 保留了写入工具(只靠 system_reminder 约束),但 BYOK 选择
- *   更严格的设计: 工具层面也移除,防止 LLM 无视指令。
- */
-const ASK_MODE_EXCLUDED_TOOLS = new Set([
-    'Edit', 'Write', 'Delete', 'Task',
-    'EditNotebook', 'GenerateImage', 'SwitchMode',
+const ASK_MODE_RESTRICTED_TOOL_TYPES = new Set([
+    'editToolCall', 'deleteToolCall', 'taskToolCall',
+    'generateImageToolCall', 'switchModeToolCall', 'createPlanToolCall',
 ]);
 
 // updateCurrentStep 只在子代理中可用 — 主代理/Plan/Debug 不需要向 parent 汇报进度
@@ -51,20 +39,19 @@ const SUBAGENT_ONLY_TOOLS = new Set([
     'updateCurrentStep',
 ]);
 
-export function filterToolsForMode(tools: LLMTool[], mode: string, isSubagent = false): LLMTool[] {
-    const normalized = mode.replace('AGENT_MODE_', '').toLowerCase() as CursorAgentMode;
-    const filtered = isSubagent ? tools : tools.filter(t => !SUBAGENT_ONLY_TOOLS.has(t.name));
-    switch (normalized) {
-        case 'ask':
-            return filtered.filter(t => !ASK_MODE_EXCLUDED_TOOLS.has(t.name) && t.name !== 'CreatePlan');
-        case 'debug':
-            return filtered.filter(t => t.name !== 'SwitchMode' && t.name !== 'CreatePlan');
-        case 'plan':
-            return filtered; // 完整工具集含 CreatePlan + SwitchMode
-        case 'agent':
-        default:
-            return filtered.filter(t => t.name !== 'CreatePlan');
-    }
+export function filterToolsForMode(tools: LLMTool[], _mode: string, isSubagent = false): LLMTool[] {
+    return isSubagent ? tools : tools.filter(tool => !SUBAGENT_ONLY_TOOLS.has(tool.name));
+}
+
+export function getToolModeRestriction(mode: string, cursorToolType: string): string | undefined {
+    const normalized = mode.replace('AGENT_MODE_', '').toLowerCase();
+    if (cursorToolType === 'createPlanToolCall' && normalized !== 'plan')
+        return 'mode_mismatch: CreatePlan requires Plan mode';
+    if (normalized === 'ask' && ASK_MODE_RESTRICTED_TOOL_TYPES.has(cursorToolType))
+        return `mode_mismatch: ${cursorToolType} is unavailable in Ask mode`;
+    if (normalized === 'debug' && cursorToolType === 'switchModeToolCall')
+        return 'mode_mismatch: SwitchMode is unavailable in Debug mode';
+    return undefined;
 }
 
 export interface ToolRegistryEntry {

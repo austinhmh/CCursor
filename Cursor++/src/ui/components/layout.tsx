@@ -10,6 +10,7 @@ import { Providers } from './providers'
 import { WebToolsButton, WebToolsDialog } from './search-section'
 import { Server } from './server'
 import { styles } from './styles'
+import { Subagents } from './subagents'
 import { ToastContainer } from './toast'
 
 function Layout({ webviewJs, codiconUri }: { webviewJs: string, codiconUri?: string }) {
@@ -48,6 +49,8 @@ function Layout({ webviewJs, codiconUri }: { webviewJs: string, codiconUri?: str
           </span>
         </h3>
         <Providers />
+
+        <Subagents />
 
         <WebToolsDialog />
 

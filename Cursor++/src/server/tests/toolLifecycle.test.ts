@@ -7,9 +7,13 @@ import { finalizeExecTool } from '../handlers/agent/execRuntime'
 import { finalizeInteractionTool } from '../handlers/agent/interactionRuntime'
 import { createEphemeralSession, pushSessionMessage } from '../handlers/agent/session'
 import { finalizeToolCall } from '../handlers/agent/toolLifecycle'
-import { runToolCall } from '../handlers/agent/toolRuntime'
+import { runToolCall as runAgentToolCall } from '../handlers/agent/toolRuntime'
 import { AgentRunAbortedError } from '../handlers/agent/wait'
 import { anthropicStateStrategy } from '../handlers/llm/stateStrategy'
+
+function runToolCall(parameters: Omit<Parameters<typeof runAgentToolCall>[0], 'mode'>) {
+  return runAgentToolCall({ ...parameters, mode: 'AGENT_MODE_AGENT' })
+}
 
 function createTestRoundContext(strategy: typeof anthropicStateStrategy) {
   const pendingToolResults: LLMToolResultBlock[] = []

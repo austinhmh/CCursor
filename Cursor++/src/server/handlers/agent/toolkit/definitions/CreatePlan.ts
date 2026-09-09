@@ -2,7 +2,7 @@ import { arr, str } from '../shared';
 import type { ToolRegistryEntry } from '../types';
 
 /**
- * CreatePlan — Plan Mode 专用工具
+ * CreatePlan — 稳定注册、仅 Plan Mode 允许执行
  *
  * Proto: createPlanToolCall (field 17)
  * Args: CreatePlanArgs { plan, todos[], overview, name, is_project?, phases[] }
@@ -11,12 +11,11 @@ import type { ToolRegistryEntry } from '../types';
  * 流程: 交互握手 (CreatePlanRequestQuery → CreatePlanRequestResponse)
  * 客户端创建 .plan.md 文件并返回 planUri。
  *
- * 此工具不暴露给 LLM（由系统在 Plan Mode 下自动注入），
- * 但需要注册以处理 LLM 主动调用 CreatePlan 的情况。
+ * 所有模式使用相同定义，非 Plan 调用由运行时权限检查拒绝。
  */
 const CREATE_PLAN_TOOL = {
     name: 'CreatePlan',
-    description: `Use this tool to create a concise plan for accomplishing the user's request. This tool should be called at the end of the planning phase to finalize and store the plan.
+    description: `Use this tool to create a concise plan for accomplishing the user's request. This tool should be called at the end of the planning phase to finalize and store the plan. The definition is always visible, but execution requires Plan mode; other modes return mode_mismatch.
 
 The plan you create should be properly formatted in markdown, using appropriate sections and headers. The plan should be very concise and actionable, providing the minimum amount of detail for the user to understand and action the plan.`,
     inputSchema: {

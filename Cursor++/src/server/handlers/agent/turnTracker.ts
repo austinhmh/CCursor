@@ -1,10 +1,15 @@
-import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
+import { create, fromBinary, fromJson, toBinary } from '@bufbuild/protobuf'
 import type { ToolCall, UserMessage } from '../../gen/agent_v1_pb'
 import {
   AgentMode,
   AssistantMessageSchema,
   ConversationStepSchema,
   ConversationTurnStructureSchema,
+  InvocationContextSchema,
+  InvocationContext_IdeStateSchema,
+  InvocationContext_IdeState_FileSchema,
+  InvocationContext_IdeState_File_CursorPositionSchema,
+  SelectedContextSchema,
   SimulatedMsgReason,
   ThinkingMessageSchema,
   UserMessageSchema,
@@ -139,9 +144,37 @@ export function createCurrentTurnUserMessageBlob(params: {
     : params.fallbackMessageId
 
   const init: Partial<UserMessage> & Record<string, unknown> = {
+    ...(raw ? fromJson(UserMessageSchema, raw as never, { ignoreUnknownFields: true }) : {}),
     text: params.parsed.userText,
     messageId,
     mode: resolveAgentMode(params.parsed.mode),
+  }
+
+  const ideState = params.parsed.ideState
+  if (ideState && (ideState.visibleFiles.length > 0 || ideState.recentlyViewedFiles.length > 0)) {
+    const buildIdeFile = (file: NonNullable<ParsedRunRequest['ideState']>['visibleFiles'][number]) =>
+      create(InvocationContext_IdeState_FileSchema, {
+        path: file.path,
+        relativePath: file.relativePath,
+        totalLines: file.totalLines,
+        activeCommand: file.activeCommand,
+        cursorPosition: file.cursorLine !== undefined || file.cursorText !== undefined
+          ? create(InvocationContext_IdeState_File_CursorPositionSchema, { line: file.cursorLine ?? 0, text: file.cursorText ?? '' })
+          : undefined,
+      })
+    const selectedContext = init.selectedContext ?? create(SelectedContextSchema)
+    const previousInvocation = selectedContext.invocationContext?.data
+    selectedContext.invocationContext = create(InvocationContextSchema, {
+      data: {
+        case: 'ideState',
+        value: create(InvocationContext_IdeStateSchema, {
+          visibleFiles: ideState.visibleFiles.map(buildIdeFile),
+          recentlyViewedFiles: ideState.recentlyViewedFiles.map(buildIdeFile),
+          currentlyViewedPrs: previousInvocation?.case === 'ideState' ? previousInvocation.value.currentlyViewedPrs : [],
+        }),
+      },
+    })
+    init.selectedContext = selectedContext
   }
 
   if (typeof raw?.richText === 'string' && raw.richText.length > 0)

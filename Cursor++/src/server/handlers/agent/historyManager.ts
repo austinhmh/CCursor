@@ -95,6 +95,34 @@ export function hasPreambleUserMessage(messages: LLMMessage[]): boolean {
   return messages.some(isPreambleUserMessage)
 }
 
+function preserveLegacyIdeState(previous: string, current: string): string {
+  const snapshot = previous.match(/<ide_state(?:\s[^>]*)?>[\s\S]*?<\/ide_state>/)
+  if (!snapshot || current.includes('<ide_state'))
+    return current
+  for (const anchor of ['</agent_transcripts>', '</user_info>']) {
+    const position = current.indexOf(anchor)
+    if (position >= 0 && previous.slice(0, snapshot.index).includes(anchor)) {
+      const offset = position + anchor.length
+      return `${current.slice(0, offset)}\n\n${snapshot[0]}${current.slice(offset)}`
+    }
+  }
+  return `${current}\n\n${snapshot[0]}`
+}
+
+export function extractHumanQuery(message: LLMMessage): string | undefined {
+  if (message.role !== 'user')
+    return undefined
+  if (Array.isArray(message.content) && message.content.some(block => block.type === 'tool_result'))
+    return undefined
+  const content = extractPlainTextContent(message)
+  const opening = '<user_query>\n'
+  const closing = '\n</user_query>'
+  const start = content.indexOf(opening)
+  if (start < 0 || !content.endsWith(closing) || content.indexOf(opening, start + opening.length) >= 0)
+    return undefined
+  return content.slice(start + opening.length, -closing.length)
+}
+
 function syncConversationScaffold(messages: LLMMessage[], systemMessage: LLMMessage, preambleUserMessage: LLMMessage): { messages: LLMMessage[], systemReplaced: boolean, preambleReplaced: boolean } {
   const next = [...messages]
   let systemReplaced = false
@@ -107,9 +135,15 @@ function syncConversationScaffold(messages: LLMMessage[], systemMessage: LLMMess
   }
 
   const preambleIndex = next.findIndex(isPreambleUserMessage)
-  if (preambleIndex >= 0 && next[preambleIndex]?.content !== preambleUserMessage.content) {
-    next[preambleIndex] = preambleUserMessage
-    preambleReplaced = true
+  if (preambleIndex >= 0) {
+    const previous = next[preambleIndex]!
+    const content = typeof previous.content === 'string' && typeof preambleUserMessage.content === 'string'
+      ? preserveLegacyIdeState(previous.content, preambleUserMessage.content)
+      : preambleUserMessage.content
+    if (previous.content !== content) {
+      next[preambleIndex] = { ...preambleUserMessage, content }
+      preambleReplaced = true
+    }
   }
 
   return { messages: next, systemReplaced, preambleReplaced }
@@ -230,16 +264,33 @@ export function* rebuildConversationHistory(params: {
   systemMessage: LLMMessage
   preambleUserMessage: LLMMessage
   currentUserMessage: LLMMessage
+  isResume?: boolean
+  resumeUserText?: string
   systemContent: string
   preambleUserContent: string
   sendSystemScaffoldBlob: (data: { role: string, content: unknown, toolCallId?: string, toolName?: string, isError?: boolean }) => Generator<AgentServerMessage, void, void>
   sendOrderedBlob: (data: { role: string, content: unknown, toolCallId?: string, toolName?: string, isError?: boolean }) => Generator<AgentServerMessage, void, void>
-}): Generator<AgentServerMessage, { messages: LLMMessage[], insertedPrependUserTexts: string[] }, void> {
+}): Generator<AgentServerMessage, { messages: LLMMessage[], insertedPrependUserTexts: string[], currentUserAppended: boolean }, void> {
   let messages: LLMMessage[] = []
   let insertedPrependUserTexts: string[] = []
+  let currentUserAppended = true
 
   if (params.historyBlobIds.length > 0) {
     const historyEntries = hydrateHistoryEntries(params.historyBlobIds)
+    if (params.isResume) {
+      if (historyEntries.length !== params.historyBlobIds.length)
+        throw new Error('resume_history_missing: history contains missing or invalid blobs')
+      const humanMessages = historyEntries.map(entry => entry.message)
+        .filter(message => extractHumanQuery(message) !== undefined)
+      const lastHuman = humanMessages.at(-1)
+      if (!lastHuman)
+        throw new Error('resume_user_missing: cannot identify the original human query')
+      if (params.resumeUserText !== undefined && extractHumanQuery(lastHuman) !== params.resumeUserText)
+        throw new Error('resume_turn_mismatch: binary turn does not match the last human query')
+      if (humanMessages.filter(message => extractHumanQuery(message) === extractHumanQuery(lastHuman)).length > 1)
+        throw new Error('resume_turn_ambiguous: repeated query cannot be matched to a unique turn')
+      currentUserAppended = false
+    }
     logger.info({
       requestedBlobs: params.historyBlobIds.length,
       resolvedBlobs: historyEntries.length,
@@ -271,7 +322,6 @@ export function* rebuildConversationHistory(params: {
     }
 
     ({ messages, insertedTexts: insertedPrependUserTexts } = mergePrependUserMessages(messages, params.prependUserMessages))
-    messages.push(params.currentUserMessage)
   }
   else {
     messages.push(params.systemMessage)
@@ -281,6 +331,11 @@ export function* rebuildConversationHistory(params: {
     yield* params.sendOrderedBlob({ role: 'user', content: params.preambleUserContent });
 
     ({ messages, insertedTexts: insertedPrependUserTexts } = mergePrependUserMessages(messages, params.prependUserMessages))
+  }
+
+  if (currentUserAppended) {
+    if (params.isResume && !extractHumanQuery(params.currentUserMessage)?.trim())
+      throw new Error('resume_user_missing: resubmit the original question to start a new turn')
     messages.push(params.currentUserMessage)
   }
 
@@ -294,5 +349,6 @@ export function* rebuildConversationHistory(params: {
   return {
     messages: repaired,
     insertedPrependUserTexts,
+    currentUserAppended,
   }
 }

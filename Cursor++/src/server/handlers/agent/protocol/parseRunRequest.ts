@@ -769,7 +769,7 @@ export function parseRunRequest(msg: Record<string, unknown>): ParsedRunRequest 
     contextTokenLimit: clientContextTokenLimit && Number.isFinite(clientContextTokenLimit) && clientContextTokenLimit > 0
       ? Math.floor(clientContextTokenLimit)
       : undefined,
-    mode: (userMessage?.mode as string) ?? 'AGENT_MODE_AGENT',
+    mode: (userMessage?.mode as string) ?? (isResume ? csMode : undefined) ?? 'AGENT_MODE_AGENT',
     isSummarize,
     isSubagent,
     isBackgroundTaskCompletion,

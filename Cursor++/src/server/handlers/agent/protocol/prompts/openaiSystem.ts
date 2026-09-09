@@ -13,7 +13,6 @@ const XHIGH_FAST_SUFFIX_RE = /-xhigh-fast$/
 export function buildOpenAISystemPrompt(parsed: ParsedRunRequest, promptProfile: ProviderPromptProfile): string {
   const modelName = promptProfile.apiModel || parsed.modelId
   const modelLabel = modelName.replace(XHIGH_FAST_SUFFIX_RE, '').replace(/-/g, '-').toUpperCase().replace('GPT-', 'GPT-')
-  const mode = parsed.mode || 'agent'
 
   const parts: string[] = []
 
@@ -68,8 +67,7 @@ IMPORTANT: The code you write will be reviewed by humans; optimize for clarity a
 - Avoid low-value or "slop" tests that mostly restate the implementation or add noise. If targeted checks or manual verification already give enough confidence, prefer those.
 </automated_testing_guardrails>`)
 
-  if (mode === 'agent') {
-    parts.push(`
+  parts.push(`
 <mode_selection>
 Choose the best interaction mode for the user's current goal before proceeding. Reassess when the goal changes or you're stuck. If another mode would work better, call \`SwitchMode\` now and include a brief explanation.
 
@@ -77,7 +75,6 @@ Choose the best interaction mode for the user's current goal before proceeding. 
 
 Consult the \`SwitchMode\` tool description for detailed guidance on each mode and when to use it. Be proactive about switching to the optimal mode—this significantly improves your ability to help the user.
 </mode_selection>`)
-  }
 
   if (parsed.readLintsEnabled) {
     parts.push(`

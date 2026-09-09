@@ -2,7 +2,7 @@
  * Agent 模式 system_reminder 注入内容
  *
  * 官方 Cursor 在每条 user message 的 content 前面注入 `<system_reminder>` 标签,
- * 根据当前模式(Ask/Plan/Debug)给出不同的行为约束指令。Agent 模式无额外注入。
+ * 根据当前模式给出行为约束；Agent 提醒明确结束历史中的只读模式约束。
  *
  * 子代理额外注入递归禁止 + 进度上报指令 (2026-05-02 GPT-5.5 + Haiku 双提取验证)。
  *
@@ -14,6 +14,11 @@ export function buildModeReminder(parsed: ParsedRunRequest): string {
   const normalized = parsed.mode.replace('AGENT_MODE_', '').toLowerCase()
   let modeBlock = ''
   switch (normalized) {
+    case 'agent':
+      modeBlock = `<system_reminder>
+Agent mode is active. Previous Ask, Plan or Debug mode restrictions no longer apply. Follow the current user request and all tool approval requirements. CreatePlan still requires switching to Plan mode.
+</system_reminder>`
+      break
     case 'ask':
       modeBlock = buildAskReminder()
       break

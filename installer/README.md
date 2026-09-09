@@ -4,18 +4,20 @@ Cursor++ BYOK Installer — Bring Your Own Key for Cursor IDE.
 
 ## Install
 
+从 GitHub Release 下载 `cometix-ccursor-<version>.tgz` 后执行：
+
 ```bash
-npx @cometix/ccursor install
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor install
 ```
 
 ## Uninstall
 
 ```bash
-npx @cometix/ccursor uninstall
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor uninstall
 ```
 
 ## Status
 
 ```bash
-npx @cometix/ccursor status
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor status
 ```

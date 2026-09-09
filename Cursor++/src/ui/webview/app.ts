@@ -5,6 +5,7 @@
  * Alpine 响应式代理自动追踪 mutation → DOM 更新, 无需手动 render() / rebind。
  */
 import type { Alpine as AlpineType } from 'alpinejs'
+import { createSubagentEditor } from './subagents'
 
 declare function acquireVsCodeApi(): { postMessage: (msg: any) => void, getState: () => any, setState: (s: any) => void }
 
@@ -80,6 +81,7 @@ export function initApp(Alpine: AlpineType) {
     remoteModels: {} as Record<string, { loading: boolean, models?: any[], error?: string }>,
     saveSnapshots: {} as Record<string, { targetIds: string[], snapshots: Record<string, any> }>,
     savingProviders: {} as Record<string, boolean>,
+    subagents: createSubagentEditor(message => vscode.postMessage(message)),
 
     // ── Web Tools Config ──
     webToolsOpen: false,
@@ -835,6 +837,7 @@ export function initApp(Alpine: AlpineType) {
 
     if (msg?.type === 'state') {
       s.state = msg.state
+      s.subagents.providers = msg.state?.providers || []
       if (msg.state?.webTools)
         s.webTools = clone(msg.state.webTools)
       for (const pid of Object.keys(s.drafts)) {
@@ -843,9 +846,13 @@ export function initApp(Alpine: AlpineType) {
           delete s.drafts[pid]
       }
     }
+    else if (msg?.type === 'subagentConfigResult') {
+      s.subagents.receive(msg)
+    }
     else if (msg?.type === 'saveProvidersResult') {
       if (msg.state) {
         s.state = msg.state
+        s.subagents.providers = msg.state.providers || []
         if (msg.state?.webTools)
           s.webTools = clone(msg.state.webTools)
       }
@@ -897,4 +904,5 @@ export function initApp(Alpine: AlpineType) {
 
   // 通知 extension 就绪
   vscode.postMessage({ type: 'ready' })
+  ;(Alpine.store('app') as any).subagents.load()
 }

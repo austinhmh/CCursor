@@ -48,6 +48,10 @@ export function getManagedSkillsFilePath(): string {
   return join(getCcursorDir(), MANAGED_SKILLS_FILE_NAME)
 }
 
+export function getSubagentConfigFilePath(): string {
+  return join(getCcursorDir(), 'subagents.json')
+}
+
 /** 日志目录 ~/.ccursor/logs */
 export function getLogsDir(): string {
   return join(getCcursorDir(), 'logs')

@@ -1,5 +1,6 @@
 import { str } from '../shared';
 import type { ToolRegistryEntry } from '../types';
+import { resolveConfiguredSubagent } from '../../subagentModelSelection';
 
 function buildTaskSubagentType(name: string): Record<string, unknown> | undefined {
     switch (name) {
@@ -389,7 +390,8 @@ export const TaskTool: ToolRegistryEntry = {
             : typeof input.subagentType === 'string'
                 ? input.subagentType
                 : 'explore';
-        const modelId = options.currentModelId || '';
+        const configured = resolveConfiguredSubagent(subagentType, input.resume);
+        const modelId = configured?.modelId ?? options.currentModelId ?? '';
         // resume="self" 是官方 Task schema 的 self-fork 语义(见 resume 参数描述):
         // 把当前父对话 fork 成新子 agent。客户端 createOrResumeSubagent 收到 forkAgentId 后
         // deepCloneComposer 复制当前对话历史 —— 而非 resume 一个名为 "self" 的 agent
@@ -399,6 +401,7 @@ export const TaskTool: ToolRegistryEntry = {
             toolCallId: callId,
             subagentType,
             modelId,
+            ...(configured ? { modelParameters: configured.modelParameters } : {}),
             prompt: input.prompt || input.description || '',
             // proto3 bool 默认 false — LLM 不传 readonly 时 subagent 可读写(Agent 模式)
             readonly: input.readonly ?? false,

@@ -34,6 +34,7 @@ import { interactionQuery } from './stream';
 import type { ToolResultEnvelope } from './toolResults';
 import type { ParsedRunRequest } from './protocol/types';
 import type { ReadContextState } from './contextCatalog';
+import { getToolModeRestriction } from './toolkit/types';
 
 type SubagentModelOverride = ParsedRunRequest['subagentModelOverrides'][number];
 
@@ -68,6 +69,9 @@ export async function* runToolCall(params: {
     availableMcpTools: AvailableMcpTool[];
     conversationId: string;
     currentModelId: string;
+    mode: string;
+    rejectionReason?: string;
+    onModeChanged?: (mode: string) => void;
     subagentModelOverrides?: SubagentModelOverride[];
     round: number;
     session: AgentSession | null;
@@ -100,7 +104,14 @@ async function* runToolCallInner(params: Parameters<typeof runToolCall>[0]): Asy
     const execArgsType = mapToolToExecArgs(cursorToolType);
     const modelCallId = `${params.conversationId}-${params.round}-${tc.callId.slice(-4)}`;
 
-    if (resolvedTool.resolutionError) {
+    const invalidSwitchTarget = cursorToolType === 'switchModeToolCall'
+        && resolvedTool.sanitizedInput.target_mode_id !== 'agent'
+        && resolvedTool.sanitizedInput.target_mode_id !== 'plan';
+    const rejectionReason = params.rejectionReason
+        ?? getToolModeRestriction(params.mode, cursorToolType)
+        ?? resolvedTool.resolutionError
+        ?? (invalidSwitchTarget ? 'invalid_mode: target_mode_id must be agent or plan' : undefined);
+    if (rejectionReason) {
         // 调用在进入生命周期前就被拒绝 —— 错误只会喂回 LLM,不落日志的话
         // 服务端侧完全无痕。这里是所有拒绝路径的统一出口 (参数类型不合法、
         // cursor namespace 未注册工具等),放这一条即可覆盖,不必逐分支补。
@@ -109,12 +120,18 @@ async function* runToolCallInner(params: Parameters<typeof runToolCall>[0]): Asy
             callId: tc.callId,
             llmToolName: tc.name,
             cursorToolType,
-            error: resolvedTool.resolutionError,
+            error: rejectionReason,
         }, '[DYNAMIC-TOOLS] tool call rejected before execution');
-        const startedArgs = buildToolArgs(tc.name, resolvedTool.sanitizedInput, tc.callId, {
-            conversationId: params.conversationId,
-            currentModelId: params.currentModelId,
-        });
+        let startedArgs: Record<string, unknown> = { toolCallId: tc.callId };
+        try {
+            startedArgs = buildToolArgs(executionToolName, resolvedTool.sanitizedInput, tc.callId, {
+                conversationId: params.conversationId,
+                currentModelId: params.currentModelId,
+            });
+        }
+        catch {
+            // Denial must still complete when the rejected arguments are malformed.
+        }
         yield toolCallStarted(tc.callId, cursorToolType, startedArgs, modelCallId);
         const finalized = finalizeToolCall({
             roundContext: params.roundContext,
@@ -123,7 +140,7 @@ async function* runToolCallInner(params: Parameters<typeof runToolCall>[0]): Asy
             toolName: tc.name,
             callId: tc.callId,
             startedArgs,
-            rawToolResult: { result: { case: 'error', value: { error: resolvedTool.resolutionError } } },
+            rawToolResult: { result: { case: 'error', value: { error: rejectionReason } } },
             input: resolvedTool.sanitizedInput,
             modelCallId,
         });
@@ -684,6 +701,9 @@ async function* runToolCallInner(params: Parameters<typeof runToolCall>[0]): Asy
                         : typeof sanitizedInput.targetModeId === 'string'
                             ? sanitizedInput.targetModeId
                             : 'agent';
+                    if (targetModeId !== 'agent' && targetModeId !== 'plan')
+                        return { result: { case: 'error', value: { error: 'Unsupported target mode' } } };
+                    params.onModeChanged?.(`AGENT_MODE_${targetModeId.toUpperCase()}`);
                     return { result: { case: 'success', value: { toModeId: targetModeId } } };
                 }
                 return { result: { case: 'error', value: { error: 'Mode switch rejected by user' } } };
@@ -722,6 +742,9 @@ export async function* launchTaskTool(params: {
     availableMcpTools: AvailableMcpTool[];
     conversationId: string;
     currentModelId: string;
+    mode: string;
+    roundContext: Pick<ProviderRoundContext, 'createToolResult' | 'recordToolResult'>;
+    messages: LLMMessage[];
     subagentModelOverrides?: SubagentModelOverride[];
     round: number;
     allocateExecMessageId: () => number;
@@ -756,23 +779,16 @@ export async function* launchTaskTool(params: {
         resolvedModelId,
     }, '[TOOL] taskToolCall dispatching');
 
-    let startedArgs: Record<string, unknown>;
+    let startedArgs: Record<string, unknown> = { toolCallId: tc.callId };
+    let args: Record<string, unknown>;
     try {
+        const restriction = getToolModeRestriction(params.mode, cursorToolType) ?? resolvedTool.resolutionError;
+        if (restriction)
+            throw new Error(restriction);
         startedArgs = buildToolArgs(executionToolName, sanitizedInput, tc.callId, {
             conversationId: params.conversationId,
             currentModelId: params.currentModelId,
         });
-    }
-    catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e);
-        logger.warn({ tool: tc.name, callId: tc.callId, error: errorMsg }, '[TOOL] taskToolCall buildStartedArgs failed');
-        return null;
-    }
-
-    yield toolCallStarted(tc.callId, cursorToolType, startedArgs, modelCallId);
-
-    let args: Record<string, unknown>;
-    try {
         const execModelId = typeof sanitizedInput.modelId === 'string'
             ? sanitizedInput.modelId
             : params.currentModelId;
@@ -784,9 +800,22 @@ export async function* launchTaskTool(params: {
     catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
         logger.warn({ tool: tc.name, callId: tc.callId, error: errorMsg }, '[TOOL] taskToolCall buildExecArgs failed');
+        yield toolCallStarted(tc.callId, cursorToolType, startedArgs, modelCallId);
+        yield finalizeToolCall({
+            roundContext: params.roundContext,
+            messages: params.messages,
+            cursorToolType,
+            toolName: tc.name,
+            callId: tc.callId,
+            startedArgs,
+            rawToolResult: { result: { case: 'error', value: { error: errorMsg } } },
+            input: sanitizedInput,
+            modelCallId,
+        }).frame;
         return null;
     }
 
+    yield toolCallStarted(tc.callId, cursorToolType, startedArgs, modelCallId);
     const execMessageId = params.allocateExecMessageId();
     yield execMessage(execMessageId, `${tc.callId}-exec`, 'subagentArgs', args);
 

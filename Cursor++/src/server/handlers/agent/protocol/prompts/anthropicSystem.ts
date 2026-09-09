@@ -15,7 +15,6 @@ export function buildAnthropicSystemPrompt(parsed: ParsedRunRequest, promptProfi
   const isThinkingModel = promptProfile.thinking
   // BYOK 场景: 所有用户配置的模型都是主力模型,统一启用保守文件创建策略
   const isCapableModel = true
-  const mode = parsed.mode || 'agent'
 
   // ── 角色定义 ──
   parts.push(`You are an AI coding assistant, powered by ${modelName || 'AI'}.
@@ -331,21 +330,8 @@ IMPORTANT: Make sure you don't end your turn before you've completed all todos.
     ))
   }
 
-  // ── Plan 模式专用 guardrails ──
-  // 官方:Plan 模式 system prompt 多了这个 section
-  if (mode === 'plan') {
-    parts.push(`
-<plan_mode_guardrails>
-- In plan mode, only edit markdown files.
-- If the user is refining the plan, stay in plan mode and keep edits in markdown.
-- If the user explicitly asks you to build, implement, or write the code now, switch to agent mode before making non-markdown edits.
-</plan_mode_guardrails>`)
-  }
-
-  // ── 模式选择 (仅 Agent 模式包含) ──
-  // 官方:Ask/Debug 模式不包含 <mode_selection>,Plan 也不包含
-  if (mode === 'agent') {
-    parts.push(`
+  // 模式定义保持稳定；当前模式约束由消息尾部提供。
+  parts.push(`
 <mode_selection>
 Choose the best interaction mode for the user's current goal before proceeding. Reassess when the goal changes or you're stuck. If another mode would work better, call \`SwitchMode\` now and include a brief explanation.
 
@@ -353,7 +339,6 @@ Choose the best interaction mode for the user's current goal before proceeding. 
 
 Consult the \`SwitchMode\` tool description for detailed guidance on each mode and when to use it. Be proactive about switching to the optimal mode—this significantly improves your ability to help the user.
 </mode_selection>`)
-  }
 
   return parts.join('\n')
 }

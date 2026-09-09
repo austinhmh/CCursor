@@ -199,11 +199,6 @@ function buildSystemPrompt(parsed: ParsedRunRequest, promptProfile: ProviderProm
     base = buildAnthropicSystemPrompt(parsed, promptProfile)
   }
 
-  const mode = parsed.mode.replace('AGENT_MODE_', '').toLowerCase()
-  if (mode === 'plan') {
-    base += `\n\n<plan_mode_guardrails>\n- In plan mode, only edit markdown files.\n- If the user is refining the plan, stay in plan mode and keep edits in markdown.\n- If the user explicitly asks you to build, implement, or write the code now, switch to agent mode before making non-markdown edits.\n</plan_mode_guardrails>`
-  }
-
   return base
 }
 
@@ -213,7 +208,6 @@ function buildSystemPrompt(parsed: ParsedRunRequest, promptProfile: ProviderProm
  * 承载官方前置 user scaffold。块顺序:
  *   <user_info>
  *   <agent_transcripts>
- *   <ide_state>              ← Step 2
  *   <rules>
  *   <agent_skills>           精简 Skill catalog（2% token budget）
  *   <manually_attached_skills> 用户手动 @ 的 Skill 完整正文
@@ -262,11 +256,6 @@ function buildPreambleUserMessage(parsed: ParsedRunRequest): string {
 Agent transcripts (past chats) live in ${parsed.env.agentTranscriptsFolder}. They have names like <uuid>.jsonl, cite them to the user as [<title for chat <=6 words>](<uuid excluding .jsonl>). NEVER cite subagent transcripts/IDs; you can only cite parent uuids. Don't discuss the folder structure.
 </agent_transcripts>`)
   }
-
-  // ── <ide_state> ── (来自 selectedContext.invocation_context.ide_state)
-  const ideSection = buildIdeStateSection(parsed)
-  if (ideSection)
-    parts.push(ideSection)
 
   // ── <rules> — always eager / agentFetched lazy / fileGlobbed 随 Read 注入 ──
   const requestableRules = parsed.projectRules.filter(rule => !isAutoAttachedRule(rule, parsed.env.workspacePaths ?? []))
@@ -602,5 +591,5 @@ Dynamic tools have been enabled for this conversation. Some tools that appeared 
   }
   const query = `<user_query>\n${parsed.userText}\n</user_query>`
   const prefix = reminders.filter(Boolean).join('\n')
-  return prefix ? `${prefix}\n${query}` : query
+  return [prefix, buildIdeStateSection(parsed), query].filter(Boolean).join('\n')
 }

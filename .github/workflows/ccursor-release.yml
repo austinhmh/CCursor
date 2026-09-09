@@ -1,0 +1,115 @@
+name: Cursor++ release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: Cursor++/pnpm-lock.yaml
+
+      - name: Install extension dependencies
+        working-directory: Cursor++
+        run: pnpm install --frozen-lockfile
+
+      - name: Install installer dependencies
+        working-directory: installer
+        run: npm ci
+
+      - name: Provide native SQLite for server tests
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ccursor-test-runtime" @vscode/sqlite3@5.1.14-vscode
+          echo "CURSOR_APP_ROOT=$RUNNER_TEMP/ccursor-test-runtime" >> "$GITHUB_ENV"
+
+      - name: Run server tests
+        working-directory: Cursor++
+        run: pnpm run test:server
+
+      - name: Verify release version
+        working-directory: installer
+        run: |
+          extension_version="$(node -e "console.log(JSON.parse(require('fs').readFileSync('../Cursor++/package.json', 'utf8')).version)")"
+          installer_version="$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version)")"
+          test "$extension_version" = "$installer_version"
+          test "$RELEASE_TAG" = "v$installer_version"
+
+      - name: Build VSIX and npm package
+        working-directory: installer
+        id: package
+        run: |
+          npm run build:all
+          package_name="$(npm pack --silent)"
+          sha256sum "$package_name" > "$package_name.sha256"
+          echo "name=$package_name" >> "$GITHUB_OUTPUT"
+
+      - name: Verify bundled native modules
+        working-directory: installer
+        run: |
+          vsix_name="$(printf '%s\n' vsix/*.vsix)"
+          for native_module in \
+            supermarkdown.darwin-arm64.node \
+            supermarkdown.darwin-x64.node \
+            supermarkdown.linux-arm64-gnu.node \
+            supermarkdown.linux-arm64-musl.node \
+            supermarkdown.linux-x64-gnu.node \
+            supermarkdown.linux-x64-musl.node \
+            supermarkdown.win32-arm64-msvc.node \
+            supermarkdown.win32-x64-msvc.node; do
+            unzip -Z1 "$vsix_name" | rg -q "/$native_module$"
+          done
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ccursor-release-${{ github.ref_name }}
+          path: |
+            installer/${{ steps.package.outputs.name }}
+            installer/${{ steps.package.outputs.name }}.sha256
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        working-directory: installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+        run: |
+          printf '%s\n' \
+            '## Install' \
+            '' \
+            "Download ${PACKAGE_NAME} below, then run:" \
+            '' \
+            '```bash' \
+            "npm exec --yes --package=\"${PACKAGE_NAME}\" -- ccursor install" \
+            '```' \
+            '' \
+            'The archive contains the Cursor++ installer and the multi-platform VSIX.' \
+            > release-notes.md
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$PACKAGE_NAME" "$PACKAGE_NAME.sha256" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$PACKAGE_NAME" "$PACKAGE_NAME.sha256" \
+              --title "Cursor++ $RELEASE_TAG" \
+              --notes-file release-notes.md
+          fi

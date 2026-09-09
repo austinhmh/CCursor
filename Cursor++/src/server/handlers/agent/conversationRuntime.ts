@@ -1,14 +1,14 @@
-import { SimulatedMsgReason, type AgentServerMessage } from '../../gen/agent_v1_pb'
+import { fromBinary } from '@bufbuild/protobuf'
+import { UserMessageSchema, SimulatedMsgReason, type AgentServerMessage } from '../../gen/agent_v1_pb'
 import type { LLMContentBlock, LLMMessage, LLMTool, LLMToolResultBlock } from '../llm/types'
 import type { ParsedRunRequest } from './protocol'
 import type { AgentSession } from './session'
 import type { ToolCallInfo } from './tools'
-import { resolveExecutionToolName } from './tools'
 import { clearDraftCheckpoint, persistConversationCheckpoint } from '../../database/checkpoints'
 import { logger } from '../../logger'
 import { resolveProviderRuntime } from '../llm'
 import { decodeBlob } from './blob'
-import { cacheBlob, getCachedBlob } from './blobStore'
+import { cacheBlob, getCachedBlob, warmupBlobsAsync } from './blobStore'
 import { emitFinalCheckpoint, emitRollingCheckpoint } from './checkpointManager'
 import { ContextTokenTracker } from './tokenCounter'
 import { createCompactionArtifacts, estimateMessagesTokens, formatMessageForSummary, planCompaction } from './compactionStrategy'
@@ -16,8 +16,8 @@ import { extractPlainTextContent, flushMessageBlobs, hydrateHistoryEntries, rebu
 import { buildMessages, workspaceUris } from './protocol'
 import { checkpoint, editToolCallStreamDelta, heartbeat, kvMessage, partialToolCall, summary, summaryCompleted, summaryStarted, translateStream, userMessageAppended } from './stream'
 import { buildSummaryUserMessage, SUMMARY_SYSTEM_PROMPT } from './summaryPrompt'
-import { finalizeTaskResult, launchTaskTool, runToolCall, type TaskLaunchContext } from './toolRuntime'
-import { awaitExecResultAndClose, waitForPromiseWithHeartbeat } from './wait'
+import { runToolBatch } from './toolBatch'
+import { buildModeReminder } from './protocol/prompts/modeReminders'
 import { restoreBlobMessageToLLMMessage } from './transcript'
 import { ActiveTurnTracker, createCurrentTurnUserMessageBlob, readTurnBaseline } from './turnTracker'
 import { contextualizeDynamicMetaTools, partitionCursorBuiltinTools, shouldEnableBuiltinDynamicProfile } from './dynamicTools'
@@ -870,6 +870,7 @@ export async function* handleConversationRun(
       ? parsed.rawUserMessage.messageId
       : `turn-${Date.now()}`
   let activeTurn: ActiveTurnTracker | null = null
+  let resumeUserText: string | undefined
 
   const sendSystemScaffoldBlob = function* (
     data: { role: string, content: unknown, toolCallId?: string, toolName?: string, isError?: boolean },
@@ -920,30 +921,34 @@ export async function* handleConversationRun(
     if (turnBlobIds.length > 0) {
       const resumed = ActiveTurnTracker.fromTurnBlobId(turnBlobIds[turnBlobIds.length - 1]!)
       if (resumed) {
+        if (parsed.historyBlobIds.length === 0)
+          throw new Error('resume_history_missing: turn exists without its message history')
+        const baseline = readTurnBaseline(turnBlobIds[turnBlobIds.length - 1]!)!
+        await warmupBlobsAsync([baseline.userMessageBlobId, ...baseline.stepBlobIds])
+        const userBlob = getCachedBlob(baseline.userMessageBlobId)
+        if (!userBlob || baseline.stepBlobIds.some(blobId => !getCachedBlob(blobId)))
+          throw new Error('resume_turn_missing: turn references unavailable blobs')
+        const originalUser = fromBinary(UserMessageSchema, Buffer.from(userBlob, 'base64'))
+        if (!originalUser.messageId || (baseline.requestId && baseline.requestId !== originalUser.messageId))
+          throw new Error('resume_turn_mismatch: invalid original user identity')
+        resumeUserText = originalUser.text
         resumed.setDynamicToolCount(parsed.dynamicToolCount)
         activeTurn = resumed
         turnBlobIds = turnBlobIds.slice(0, -1)
       }
       else {
-        logger.warn({ conversationId: parsed.conversationId, lastTurnBlobId: turnBlobIds[turnBlobIds.length - 1] }, '[TURN] failed to resume last turn baseline; future checkpoints will omit turns for this resume')
+        throw new Error('resume_turn_invalid: cannot decode the referenced turn')
       }
     }
   }
-  else {
-    const { blob, messageId } = createCurrentTurnUserMessageBlob({
-      parsed,
-      fallbackMessageId: syntheticUserMessageId,
-    })
-    activeTurn = new ActiveTurnTracker(blob.blobId, [], messageId, parsed.dynamicToolCount)
-    yield cacheAndBuildKvBlob(++blobCounter, blob)
-  }
-
   const rebuiltHistory = yield* rebuildConversationHistory({
     historyBlobIds: parsed.historyBlobIds,
     prependUserMessages: parsed.prependUserMessages,
     systemMessage,
     preambleUserMessage,
     currentUserMessage,
+    isResume: parsed.isResume,
+    resumeUserText,
     systemContent,
     preambleUserContent,
     sendSystemScaffoldBlob,
@@ -955,7 +960,12 @@ export async function* handleConversationRun(
     yield* sendOrderedBlob({ role: 'user', content: text })
   }
 
-  yield* sendOrderedBlob({ role: 'user', content: currentUserContentRaw })
+  if (rebuiltHistory.currentUserAppended) {
+    const { blob, messageId } = createCurrentTurnUserMessageBlob({ parsed, fallbackMessageId: syntheticUserMessageId })
+    activeTurn = new ActiveTurnTracker(blob.blobId, [], messageId, parsed.dynamicToolCount)
+    yield cacheAndBuildKvBlob(++blobCounter, blob)
+    yield* sendOrderedBlob({ role: 'user', content: currentUserContentRaw })
+  }
   let nextBlobbedMessageIndex = messages.length
 
   const userPreview = parsed.isExecutePlan && parsed.executePlanContent
@@ -1223,43 +1233,17 @@ export async function* handleConversationRun(
       const roundContext = route.createRoundContext()
       const roundImageBlocks: LLMContentBlock[] = []
 
-      // ── Phase 1: 批量发送 Task tool 的 started + exec（不等待结果） ──
-      const taskLaunches: TaskLaunchContext[] = []
-      const nonTaskCalls: typeof pendingToolCalls = []
-      for (const tc of pendingToolCalls) {
-        // dynamic profile 下 Task 落在 cursor namespace,LLM 侧名字是
-        // CallDynamicTool,真实身份藏在 arguments 里。按 tc.name 分流会让
-        // Task 掉进 Phase 2 串行路径,丢掉并发启动与 subagent 模型解析。
-        const executionToolName = resolveExecutionToolName(tc.name, tc.input, parsed.cursorDynamicTools)
-        if ((executionToolName === 'Task' || executionToolName === 'Subagent') && session) {
-          const ctx = yield* launchTaskTool({
-            toolCall: tc,
-            availableMcpTools: parsed.mcpTools,
-            conversationId: parsed.conversationId,
-            currentModelId: parsed.modelId,
-            subagentModelOverrides: parsed.subagentModelOverrides,
-            round,
-            allocateExecMessageId: () => ++blobCounter,
-            cursorDynamicTools: parsed.cursorDynamicTools,
-          })
-          if (ctx)
-            taskLaunches.push(ctx)
-        }
-        else {
-          nonTaskCalls.push(tc)
-        }
-      }
-
-      if (taskLaunches.length > 1)
-        logger.info({ count: taskLaunches.length, callIds: taskLaunches.map(t => t.tc.callId) }, '[AGENT] task tools launched concurrently')
-
-      // ── Phase 2: 串行执行非 Task 工具（edit, shell, glob 等） ──
-      for (const tc of nonTaskCalls) {
-        const toolFrames = runToolCall({
-          toolCall: tc,
+      const modeReminders: string[] = []
+      const toolFrames = runToolBatch({
+          toolCalls: pendingToolCalls,
           availableMcpTools: parsed.mcpTools,
           conversationId: parsed.conversationId,
           currentModelId: parsed.modelId,
+          mode: parsed.mode,
+          onModeChanged: (mode) => {
+            parsed.mode = mode
+            modeReminders.push(`<system_reminder>Mode changed to ${mode.replace('AGENT_MODE_', '')}. This replaces previous mode restrictions.</system_reminder>\n${buildModeReminder(parsed)}`)
+          },
           subagentModelOverrides: parsed.subagentModelOverrides,
           round,
           session,
@@ -1275,48 +1259,13 @@ export async function* handleConversationRun(
           cursorDynamicTools: parsed.cursorDynamicTools,
           projectDir: parsed.env.projectFolder ?? parsed.env.workspacePaths?.[0],
         })
-        for await (const frame of toolFrames) {
+      for await (const frame of toolFrames) {
           const completedToolCall = extractCompletedToolCall(frame)
           if (activeTurn && completedToolCall) {
             const toolBlob = activeTurn.addCompletedToolCall(completedToolCall)
             yield cacheAndBuildKvBlob(++blobCounter, toolBlob)
           }
           yield frame
-        }
-      }
-
-      // ── Phase 3: 并发等待所有 Task 结果 ──
-      if (taskLaunches.length > 0 && session) {
-        const resultPromises = taskLaunches.map(ctx =>
-          awaitExecResultAndClose(session, ctx.execMessageId),
-        )
-        const results = yield* waitForPromiseWithHeartbeat(Promise.all(resultPromises))
-        for (let i = 0; i < taskLaunches.length; i++) {
-          const frame = finalizeTaskResult(taskLaunches[i], results[i], roundContext, messages, session)
-          const completedToolCall = extractCompletedToolCall(frame)
-          if (activeTurn && completedToolCall) {
-            const toolBlob = activeTurn.addCompletedToolCall(completedToolCall)
-            yield cacheAndBuildKvBlob(++blobCounter, toolBlob)
-          }
-          yield frame
-        }
-      }
-
-      // SwitchMode 成功后立即切换 mode,让下一轮 LLM 用新工具集
-      // (例如 Agent→Plan 切换后 CreatePlan 工具才会出现在列表里)
-      for (const tr of roundContext.pendingToolResults) {
-        if (!tr.isError && tr.content.includes('toModeId')) {
-          try {
-            const parsed_result = JSON.parse(tr.content)
-            const toMode = parsed_result?.toModeId as string | undefined
-            if (toMode) {
-              const newMode = `AGENT_MODE_${toMode.toUpperCase()}`
-              logger.info({ from: parsed.mode, to: newMode }, '[AGENT] mode switched mid-session')
-              parsed.mode = newMode
-            }
-          }
-          catch {}
-        }
       }
 
       if (roundContext.pendingToolResults.length > 0) {
@@ -1332,6 +1281,10 @@ export async function* handleConversationRun(
       }
       const transition = roundContext.transition(messages, assistantContent)
       flushedToolResults = transition.flushedToolResults;
+
+      // Append only after all tool results, preserving provider tool-result adjacency.
+      if (modeReminders.length > 0)
+        messages.push({ role: 'user', content: modeReminders.join('\n') })
 
       if (roundImageBlocks.length > 0) {
         messages.push({ role: 'user', content: roundImageBlocks })

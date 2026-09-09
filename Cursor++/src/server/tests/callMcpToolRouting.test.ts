@@ -1,10 +1,12 @@
 import type { AgentServerMessage } from '../gen/agent_v1_pb'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mergeMcpStateIntoRoutingTable } from '../handlers/agent/mcpState'
 import { buildToolArgs } from '../handlers/agent/toolBuilders'
 import { launchTaskTool } from '../handlers/agent/toolRuntime'
 import { mapPartialToolName, mapToolName, parseFlatMcpToolName, resolveExecutionToolName, resolveToolCall } from '../handlers/agent/tools'
 import { getProviderToolCatalog } from '../handlers/llm/toolCatalog'
+
+vi.mock('../handlers/agent/subagentModelSelection', () => ({ resolveConfiguredSubagent: () => undefined }))
 
 /**
  * dynamic namespace 模式下的 CallDynamicTool 路由。
@@ -243,6 +245,12 @@ describe('cursor namespace 的原生工具身份', () => {
   it('经 CallDynamicTool 启动的 Task 走 subagent 通道,不走 mcpArgs', async () => {
     const frames: AgentServerMessage[] = []
     const iterator = launchTaskTool({
+      mode: 'AGENT_MODE_AGENT',
+      messages: [],
+      roundContext: {
+        createToolResult: result => ({ type: 'tool_result', toolUseId: result.toolCallId, toolName: result.toolName, content: result.content, isError: result.isError }),
+        recordToolResult: () => {},
+      },
       toolCall: {
         callId: 'call-task-1',
         name: 'CallDynamicTool',

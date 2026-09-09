@@ -31,17 +31,17 @@ Cursor++ 让你使用**自己的 LLM API Key**（Anthropic / OpenAI / Google Gem
 ## Quick Start / 快速开始
 
 ```bash
-# Install / 安装
-npx @cometix/ccursor install
+# 从 GitHub Release 附件下载 `cometix-ccursor-<version>.tgz` 后安装
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor install
 
 # Restart Cursor, then open the Cursor++ sidebar panel to configure providers
 # 重启 Cursor，打开侧边栏 Cursor++ 面板配置服务商
 
 # Uninstall / 卸载
-npx @cometix/ccursor uninstall
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor uninstall
 
 # Check installation status / 检查安装状态
-npx @cometix/ccursor status
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor status
 ```
 
 ---
@@ -163,9 +163,9 @@ Requires **Cursor IDE** + **Node.js >= 18**.
 
 ## Issues & Feedback / 问题与反馈
 
-This repository is for **issue tracking and documentation only** — source code is not published.
+This repository contains the source code and publishes installable `.tgz` packages through GitHub Releases.
 
-本仓库仅用于**问题追踪和文档发布** — 源代码不公开。
+本仓库包含源码，并通过 GitHub Releases 发布可安装的 `.tgz` 安装包。
 
 - [Submit an Issue](https://github.com/CometixSpace/CCursor/issues)
 - [LinuxDO Discussion](https://linux.do/t/topic/1926833)

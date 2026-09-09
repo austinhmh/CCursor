@@ -27,16 +27,16 @@ Cursor++ lets you use **your own LLM API keys** (Anthropic, OpenAI, Google Gemin
 ## Quick Start
 
 ```bash
-# Install
-npx @cometix/ccursor install
+# Download `cometix-ccursor-<version>.tgz` from the GitHub Release assets, then install
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor install
 
 # Restart Cursor, then open the Cursor++ sidebar panel to configure providers
 
 # Uninstall
-npx @cometix/ccursor uninstall
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor uninstall
 
 # Check installation status
-npx @cometix/ccursor status
+npm exec --yes --package="$HOME/Downloads/cometix-ccursor-<version>.tgz" -- ccursor status
 ```
 
 ---
@@ -140,7 +140,7 @@ Requires **Cursor IDE** + **Node.js >= 18**.
 
 ## Issues & Feedback
 
-This repository is for **issue tracking and documentation only** — source code is not published.
+This repository contains the source code and publishes installable `.tgz` packages through GitHub Releases.
 
 - [Submit an Issue](https://github.com/CometixSpace/CCursor/issues)
 - [LinuxDO Discussion](https://linux.do/t/topic/1926833)
